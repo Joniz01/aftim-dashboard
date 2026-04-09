@@ -41,7 +41,7 @@ export async function POST(request) {
         cant_productos_inventario: datos.inventario.length,
       },
       sheets: sheetsResult,
-      datos,
+
     })
 
   } catch (error) {
