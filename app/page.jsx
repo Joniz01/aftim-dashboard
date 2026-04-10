@@ -1,240 +1,99 @@
-'use client'
+// lib/aftim.js — Versión Final con Formato de Fecha Corregido
 
-import { useState, useEffect, useCallback } from 'react'
-import KPICards from '@/components/KPICards'
-import VentasProductos from '@/components/VentasProductos'
-import InventarioTable from '@/components/InventarioTable'
-import PedidosActivos from '@/components/PedidosActivos'
-import Configuracion from '@/components/Configuracion'
-import { RefreshCw, LayoutDashboard, ShoppingCart, Package, ClipboardList, Settings, Wifi, WifiOff } from 'lucide-react'
+const AFTIM_URL = process.env.AFTIM_URL;
+const AFTIM_TENANT = process.env.AFTIM_TENANT;
+const AFTIM_TOKEN = process.env.AFTIM_TOKEN;
 
-const TABS = [
-  { id: 'resumen', label: 'Resumen', icon: LayoutDashboard },
-  { id: 'ventas', label: 'Ventas por Producto', icon: ShoppingCart },
-  { id: 'inventario', label: 'Inventario', icon: Package },
-  { id: 'pedidos', label: 'Pedidos Activos', icon: ClipboardList },
-  { id: 'config', label: 'Configuración', icon: Settings },
-]
+async function queryAftim(query, variables = {}) {
+  try {
+    const res = await fetch(AFTIM_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Tenant-id': AFTIM_TENANT,
+        'Authorization': `Bearer ${AFTIM_TOKEN}`,
+      },
+      body: JSON.stringify({ query, variables }),
+      cache: 'no-store',
+    });
 
-export default function Dashboard() {
-  const [tab, setTab] = useState('resumen')
-  const [datos, setDatos] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [lastSync, setLastSync] = useState(null)
-  const [syncLog, setSyncLog] = useState([])
-  const [config, setConfig] = useState({
-    horaInicio: '07',
-    horaFin: '17',
-    intervalo: '120',
-    autoSync: true,
-  })
-
-  const ejecutarSync = useCallback(async (manual = false) => {
-    setLoading(true)
-    setError(null)
-    const inicio = Date.now()
-    try {
-      const res = await fetch('/api/sync', { method: 'POST' })
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error)
-      setDatos(json)
-      const ts = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })
-      setLastSync(ts)
-      setSyncLog(prev => [{
-        ts,
-        tipo: manual ? 'Manual' : 'Auto',
-        elapsed: Date.now() - inicio,
-        facturasDia: json.resumen?.cant_facturas_dia,
-        ventaDiaUsd: json.resumen?.venta_dia_usd,
-      }, ...prev.slice(0, 19)])
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Carga inicial
-  useEffect(() => {
-    ejecutarSync(false)
-  }, [])
-
-  // Auto-sync según configuración
-  useEffect(() => {
-    if (!config.autoSync) return
-    const intervaloMs = parseInt(config.intervalo) * 60 * 1000
-    const timer = setInterval(() => {
-      const horaVE = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Caracas' })).getHours()
-      if (horaVE >= parseInt(config.horaInicio) && horaVE < parseInt(config.horaFin)) {
-        ejecutarSync(false)
-      }
-    }, intervaloMs)
-    return () => clearInterval(timer)
-  }, [config, ejecutarSync])
-
-  const horaActual = new Date().toLocaleTimeString('es-VE', {
-    timeZone: 'America/Caracas',
-    hour: '2-digit', minute: '2-digit',
-  })
-
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-
-      {/* Header */}
-      <header style={{
-        borderBottom: '1px solid var(--border)',
-        background: 'rgba(10,10,15,0.95)',
-        backdropFilter: 'blur(12px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        padding: '0 24px',
-      }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56 }}>
-
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 32, height: 32,
-              background: 'var(--accent)',
-              borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'var(--font-display)', fontSize: 18, color: '#fff',
-            }}>A</div>
-            <div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, letterSpacing: '0.05em', color: 'var(--text-primary)', lineHeight: 1 }}>
-                AFTIM DASHBOARD
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                Hechizo Gourmet
-              </div>
-            </div>
-          </div>
-
-          {/* Status + Sync */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Hora */}
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)' }}>
-              🕐 {horaActual} VE
-            </span>
-
-            {/* Status */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {error
-                ? <><WifiOff size={14} color="var(--red)" /><span style={{ fontSize: 11, color: 'var(--red)' }}>Error</span></>
-                : datos
-                  ? <><div className="pulse-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)' }} /><span style={{ fontSize: 11, color: 'var(--green)' }}>En línea</span></>
-                  : <><Wifi size={14} color="var(--text-muted)" /><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Esperando...</span></>
-              }
-            </div>
-
-            {/* Last sync */}
-            {lastSync && (
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'none' }} className="hidden md:inline">
-                Sync: {lastSync}
-              </span>
-            )}
-
-            {/* Botón sync */}
-            <button
-              onClick={() => ejecutarSync(true)}
-              disabled={loading}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: loading ? 'var(--accent-dim)' : 'var(--accent)',
-                color: loading ? 'var(--accent)' : '#fff',
-                border: loading ? '1px solid var(--accent)' : 'none',
-                borderRadius: 8,
-                padding: '7px 14px',
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: '0.05em',
-              }}
-            >
-              <RefreshCw size={13} className={loading ? 'spin' : ''} />
-              {loading ? 'SINCRONIZANDO...' : 'SINCRONIZAR'}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Tabs */}
-      <nav style={{ borderBottom: '1px solid var(--border)', padding: '0 24px', background: 'var(--bg-card)' }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', gap: 2 }}>
-          {TABS.map(t => {
-            const Icon = t.icon
-            const active = tab === t.id
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '12px 16px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-                  color: active ? 'var(--accent)' : 'var(--text-muted)',
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 400,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  marginBottom: -1,
-                }}
-              >
-                <Icon size={13} />
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-      </nav>
-
-      {/* Error banner */}
-      {error && (
-        <div style={{
-          background: 'var(--red-dim)', border: '1px solid var(--red)',
-          borderRadius: 8, margin: '16px 24px', padding: '12px 16px',
-          color: 'var(--red)', fontSize: 13,
-        }}>
-          ⚠️ Error de sincronización: {error}
-        </div>
-      )}
-
-      {/* Contenido */}
-      <main style={{ maxWidth: 1400, margin: '0 auto', padding: '24px' }}>
-        {!datos && !error && (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
-            <RefreshCw size={32} className="spin" style={{ margin: '0 auto 16px', display: 'block', color: 'var(--accent)' }} />
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '0.1em' }}>
-              CARGANDO DATOS...
-            </div>
-            <div style={{ fontSize: 12, marginTop: 8 }}>Consultando API AFTIM</div>
-          </div>
-        )}
-
-        {datos && (
-          <div className="fade-in">
-            {tab === 'resumen' && <KPICards resumen={datos.resumen} ventasProductos={datos.ventasProductos} />}
-            {tab === 'ventas' && <VentasProductos ventasProductos={datos.ventasProductos} />}
-            {tab === 'inventario' && <InventarioTable inventario={datos.inventario} />}
-            {tab === 'pedidos' && <PedidosActivos pedidos={datos.pedidos} />}
-            {tab === 'config' && (
-              <Configuracion
-                config={config}
-                setConfig={setConfig}
-                syncLog={syncLog}
-                lastSync={lastSync}
-                onSync={() => ejecutarSync(true)}
-                loading={loading}
-              />
-            )}
-          </div>
-        )}
-      </main>
-    </div>
-  )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    
+    const json = await res.json();
+    if (json.errors) throw new Error(json.errors[0].message);
+    
+    return json.data;
+  } catch (error) {
+    console.error("[AFTIM API ERROR]:", error.message);
+    return null;
+  }
 }
+
+// ─── Utilidades de fecha optimizadas ───────────────────────────────────────
+
+function getFechas() {
+  const now = new Date();
+  
+  // Ajuste para obtener el día actual en formato YYYY-MM-DD
+  const fmt = (d) => d.toISOString().split('T')[0];
+
+  const diaInicio = new Date(now);
+  const diaFin = new Date(now);
+  
+  const mesInicio = new Date(now.getFullYear(), now.getMonth(), 1);
+  const mesFin = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  return {
+    diaInicio: fmt(diaInicio),
+    diaFin: fmt(diaFin),
+    mesInicio: fmt(mesInicio),
+    mesFin: fmt(mesFin),
+  };
+}
+
+// ─── Consultas ─────────────────────────────────────────────────────────────
+
+async function getFacturas(fi, ff) {
+  const query = `query GetFacturas($fi: DateOrDateTime, $ff: DateOrDateTime) {
+    getFacturas(limit: 500, filter: { anulada: { eq: 0 }, fecha_at: { gte: $fi, lte: $ff } }) {
+      total total_dolar
+    }
+  }`;
+  const data = await queryAftim(query, { fi, ff });
+  return data?.getFacturas || [];
+}
+
+async function getInventario() {
+  const query = `{ getExistencias(limit: 500) { existencia Concepto { nombre } } }`;
+  const data = await queryAftim(query);
+  return data?.getExistencias || [];
+}
+
+// ─── Función Principal ─────────────────────────────────────────────────────
+
+export async function obtenerTodosLosDatos() {
+  const f = getFechas();
+
+  // Ejecución secuencial para mayor estabilidad en Vercel Hobby
+  const facturasDia = await getFacturas(f.diaInicio, f.diaFin);
+  const facturasMes = await getFacturas(f.mesInicio, f.mesFin);
+  const inventario = await getInventario();
+
+  const sumar = (arr, campo) => arr.reduce((s, item) => s + (parseFloat(item[campo]) || 0), 0);
+
+  return {
+    resumen: {
+      venta_dia_bs: sumar(facturasDia, 'total'),
+      venta_dia_usd: sumar(facturasDia, 'total_dolar'),
+      venta_mes_bs: sumar(facturasMes, 'total'),
+      venta_mes_usd: sumar(facturasMes, 'total_dolar'),
+      cant_facturas_dia: facturasDia.length,
+      ultima_actualizacion: new Date().toISOString(),
+    },
+    ventasProductos: { mes: [] },
+    inventario: inventario.slice(0, 100),
+    pedidos: [],
+  };
+}
+
+export { getFechas };
