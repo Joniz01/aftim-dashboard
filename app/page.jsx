@@ -38,7 +38,7 @@ export default function Dashboard() {
       const res = await fetch('/api/sync', { method: 'POST' })
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
-      setDatos(json.datos)
+      setDatos(json)
       const ts = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })
       setLastSync(ts)
       setSyncLog(prev => [{
